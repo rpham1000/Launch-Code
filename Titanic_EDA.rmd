@@ -1,0 +1,344 @@
+---
+title: "Titanic Exploratory Data Analysis"
+author: "Richard Pham"
+date: "February 13, 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, include=FALSE}
+# Linux
+#setwd("/home/Documents/Kaggle/Titanic/")
+# Windows
+setwd("C:\\Users\\Richard\\Google Drive\\Personal\\Machine Learning\\Kaggle\\")
+
+library(ggplot2)
+library(dplyr)
+```
+
+```{r include=FALSE}
+passenger_df <- read.csv('train.csv', na.strings=c(""," ","NA"))
+test_df <- read.csv('test.csv', na.strings=c(""," ","NA"))
+
+# Qualitative descriptors for better looking graphs
+passenger_df <- mutate(passenger_df, Survived.qual = ifelse(Survived == 0, 'No', 'Yes'))
+
+passenger_df <- mutate(passenger_df, Embarked = case_when(Embarked == 'C' ~ 'Cherbourg',
+                                                          Embarked == 'Q' ~ 'Queenstown',
+                                                          Embarked == 'S' ~ 'Southampton'))
+
+passenger_df <- mutate(passenger_df, Pclass.qual = case_when(Pclass == '1' ~ '1st',
+                                                             Pclass == '2' ~ '2nd',
+                                                             Pclass == '3' ~ '3rd'))
+```
+
+### Data Dictionary  
+
+#### Variable Definition Key 
+survival Survival 0 = No, 1 = Yes  
+pclass Ticket class 1 = 1st, 2 = 2nd, 3 = 3rd  
+sex Sex  
+Age Age in years  
+sibsp # of siblings / spouses aboard the Titanic  
+parch # of parents / children aboard the Titanic  
+ticket Ticket number  
+fare Passenger fare  
+cabin Cabin number  
+embarked Port of Embarkation C = Cherbourg, Q = Queenstown, S = Southampton  
+
+#### Variable Notes
+pclass: A proxy for socio-economic status (SES)  
+1st = Upper  
+2nd = Middle  
+3rd = Lower  
+
+age: Age is fractional if less than 1. If the age is estimated, is it in the form of xx.5  
+
+sibsp: The dataset defines family relations in this way...  
+Sibling = brother, sister, stepbrother, stepsister  
+Spouse = husband, wife (mistresses and fiancés were ignored)  
+
+parch: The dataset defines family relations in this way...  
+Parent = mother, father  
+Child = daughter, son, stepdaughter, stepson  
+Some children travelled only with a nanny, therefore parch=0 for them.  
+  
+***
+
+#### Initial Visualizations
+These initial graphs are to get a sense of the data.  
+
+```{r Passenger Surivival by Sex, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Sex)) +
+  geom_histogram(stat = 'count') +
+  ggtitle("Passenger Survival by Sex") +
+  facet_wrap(~ Survived.qual, ncol = 2)
+```
+  
+Notes:  
+There were roughly twice as many men as women, but women survived at twice the rate of men. This is not surprising.  
+
+***  
+  
+```{r Passenger Survival by Age, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Age)) +
+  geom_histogram(binwidth = 2) +
+  ggtitle("Passenger Survival by Age") +
+  facet_wrap(~ Survived.qual, ncol = 2)
+```
+  
+Notes:  
+Passengers between 20 and 40 were more likely to die. The height of the bins in the No survival graph is much higher relative to the Yes survival graph.  
+
+***
+  
+```{r Passenger Survival by Sibling or Spouses Aboard, warning=FALSE}
+ggplot(data = passenger_df, aes(x = SibSp)) +
+  geom_histogram(binwidth = 1) +
+  scale_x_continuous(breaks = seq(0, 8, 1)) +
+  ggtitle("Passenger Survival by Sibling or Spouse Count") +
+  facet_wrap(~ Survived.qual, ncol = 2)
+```
+  
+Notes:  
+People with no siblings or spouses on board were more likely to die. However, it may not matter how many a person has so much as if they have any siblings or spouses at all. It may be more useful to make this a binary value for prediction.  
+  
+***  
+  
+```{r Passenger Survival by Parents or Children Aboard, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Parch)) +
+  geom_histogram(binwidth = 1) +
+  scale_x_continuous(breaks = seq(0, 8, 1)) +
+  ggtitle("Passenger Survival by Parent or Child Count") +
+  facet_wrap(~ Survived.qual, ncol = 2)
+```
+  
+Notes:  
+Similar case to the sibling spouse variable.  
+
+***  
+  
+```{r Passenger Survival by Class, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Pclass)) +
+  geom_histogram(stat = 'count') +
+  ggtitle("Passenger Survival by Class") +
+  facet_wrap(~ Survived.qual, ncol = 2)
+```
+  
+Notes:
+Passengers in 3rd class were much less likely to survive.  
+  
+***
+  
+```{r Passenger Survival by Fare, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Fare)) +
+  geom_histogram(binwidth = 5) +
+  scale_x_continuous(lim = c(0, quantile(passenger_df$Fare, 0.99))) +
+  ggtitle("Passenger Survival by Fare") +
+  facet_wrap(~ Survived.qual, ncol = 2)
+```
+  
+Notes:
+Passengers with a fare less than $10 were less likely to survive. It may be better to encode social class in one variable for prediction rather than use both Pclass and Fare.
+
+***
+
+```{r Passenger Survival by Embarking Location, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Embarked)) +
+  geom_histogram(stat = 'count') +
+  ggtitle("Passenger Survival by Embarking Location") +
+  facet_wrap(~ Survived.qual, ncol = 2)
+```
+  
+Notes:  
+Passengers embarking from Southampton were less likely to survive. Is it possible that class is being geographically encoded?  
+  
+***  
+
+##### Remaining variables
+The cabin and ticket number data will be left unused for now. Though cabin number may be useful, many passengers do not have this data available. It may be possible to extract further relations from ticket number order, such as consecutive ticket numbers being near the same room or close friends. It would also be interesting to vectorize the names of the passengers in an attempt extrapolate more features, possibly social class or ethnicity.
+
+***
+
+#### Investigating Social Class Further
+A graph containing all of the social class information.  
+```{r Summary of Social Class Data, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Pclass, y = Fare, color = Embarked)) +
+  geom_point(alpha = 0.25, position = position_jitter(h = 0)) +
+  scale_color_brewer(type = "qual", palette = 'Set1') +
+  ggtitle("Fare vs Ticket Class")
+```
+  
+Notes: This is unexpected. The ticket class does not bin the fares into three perfect groups. These variables are not redundant.  
+  
+***  
+  
+Let's remove embarking location to see survival.
+```{r Scatterplot of Fare vs Class, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Pclass, y = Fare, color = Survived.qual)) +
+  geom_point(alpha = 0.25, position = position_jitter(h = 0)) +
+  scale_x_continuous(breaks = seq(1, 3, 1)) +
+  scale_color_brewer(type = "qual", palette = 'Set1') +
+  ggtitle("Fare vs Ticket Class")
+```
+
+***  
+  
+Let's remove class to see survival.  
+```{r Scatterplot of Fare vs Embarking Location, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Embarked, y = Fare, color = Survived.qual)) +
+  geom_point(alpha = 0.25, position = position_jitter(h = 0)) +
+  scale_color_brewer(type = "qual", palette = 'Set1') +
+  ggtitle("Fare vs Embarking Location")
+```
+
+***
+
+#### How many columns contain NA values?
+
+```{r include=FALSE}
+summary(passenger_df)
+summary(test_df)
+
+which(is.na(passenger_df$Embarked), arr.ind=TRUE)
+which(is.na(test_df$Fare), arr.ind=TRUE)
+```
+  
+The training data has 2 missing values for Embarked and 177 missing Age values.  
+The missing age values occur in row 62 and 830. Both are older women with fares over 80.00 that survived. It would be reasonable to guess they came from Cherbourg based on the Fare vs Embarking Location graph.  
+
+```{r}
+passenger_df[62, 'Embarked'] = 'Cherbourg'
+passenger_df[830, 'Embarked'] = 'Cherbourg'
+```
+
+
+The test data has 1 missing Fare value and 86 missing Age values.  
+The missing Fare value occurs in row 153. This will be imputed with the mean value of the fares for men over the age of 50 in 3rd class who left from Southhampton in the training data.
+
+```{r Fare vs Age, warning=FALSE}
+ggplot(data = passenger_df[passenger_df$Pclass == 3 & 
+                             passenger_df$Embarked == 'Southampton' & 
+                             passenger_df$Sex == 'male' &
+                             passenger_df$Age > 40,], 
+       aes(x = Age, y = Fare)) +
+  geom_point()
+```
+
+
+```{r Estimate fare of Mr. Thomas Storey}
+
+test_df[153, 'Fare'] <- mean(passenger_df$Fare[passenger_df$Pclass == 3 & 
+                                                 passenger_df$Embarked == 'Southampton' &
+                                                 passenger_df$Sex == 'male' & 
+                                                 passenger_df$Age > 40],
+                             na.rm=TRUE)
+
+```
+  
+In the test data, I imputed Mr. Thomas Storey's Fare price as 8.221144.  
+
+***
+
+Python cannot take NA as a training value. The missing ages in the training and test data either need to be computed or assigned a value.  
+
+```{r Scatterplot of Age vs Fare, warning=FALSE}
+ggplot(data = passenger_df, aes(x = Fare, y = Age, color = Embarked)) +
+  geom_point(alpha = 0.25) +
+  scale_color_brewer(type = "qual", palette = 'Set1') +
+  ggtitle("Age vs Fare")
+
+ggplot(data = passenger_df, aes(x = Fare, y = Age, color = Pclass.qual)) +
+  geom_point(alpha = 0.25) +
+  scale_color_brewer(type = "qual", palette = 'Set1') +
+  ggtitle("Age vs Fare")
+```
+  
+Notes: Unfortunately, there seems to be no major patterns between the Age and the other variables.  
+
+***
+It is possible the missing Age values all come from one Fare range, Embarking location, or ticket class.  
+
+```{r, warning=FALSE}
+ggplot(data = subset(passenger_df, is.na(passenger_df$Age)),
+       aes(x = Survived.qual)) +
+  geom_histogram(stat = 'count')
+
+ggplot(data = subset(passenger_df, is.na(passenger_df$Age)),
+       aes(x = Fare)) +
+  geom_histogram(binwidth = 2)
+
+ggplot(data = subset(passenger_df, is.na(passenger_df$Age)),
+       aes(x = Embarked)) +
+  geom_histogram(stat = 'count')
+
+ggplot(data = subset(passenger_df, is.na(passenger_df$Age)),
+       aes(x = Pclass.qual)) +
+  geom_histogram(stat = 'count')
+```
+  
+Notes: The passengers with missing data values have the same distributions as passengers with age data.
+
+
+#### Strategies for Re-encoding Data for Machine Learning Toolbox in Python
+1. Encode embarking location as a dummy variable. It does not make sense to give them values such as 1, 2, and 3 since the average of Cherbourg and Southampton is not Queenstown.  
+2. Impute missing Age values as a constant far over real age values. For a supervised classifier such as a decision tree, this should create a separate branch for those over the age of 200 (or some other large number.)  
+3. Create a separate classifier for those missing Age data and combine the results.  
+
+
+Do strategy 1 in R. 2 and 3 are more easily done in Python.  
+```{r eval=FALSE}
+
+passenger_df$C <- ifelse(passenger_df$Embarked == 'Cherbourg', 1, 0)
+passenger_df$Q <- ifelse(passenger_df$Embarked == 'Queenstown', 1, 0)
+passenger_df$S <- ifelse(passenger_df$Embarked == 'Southampton', 1, 0)
+
+passenger_df <- mutate(passenger_df, Embarked = case_when(Embarked == 'Cherbourg' ~ 'C',
+                                                          Embarked == 'Queenstown' ~ 'Q',
+                                                          Embarked == 'Southampton' ~ 'S'))
+
+keeps  <- c('PassengerId', 'Survived', 'Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Cabin',
+            'Embarked', 'C', 'Q', 'S')
+cleaned_train_df <- passenger_df[keeps]
+```
+
+```{r eval=FALSE}
+test_df$C <- ifelse(test_df$Embarked == 'C', 1, 0)
+test_df$Q <- ifelse(test_df$Embarked == 'Q', 1, 0)
+test_df$S <- ifelse(test_df$Embarked == 'S', 1, 0)
+
+cleaned_test_df <- test_df[keeps]
+```
+
+
+#### Save the Data for Processing in Python
+```{r eval=FALSE}
+#write.csv(cleaned_train_df, file = "train_cleaned.csv")
+#write.csv(cleaned_test_df, file = "test_cleaned.csv")
+```
+
+#### Score Comparison
+```{r}
+score_df <- read.csv('titanic-publicleaderboard.csv')
+# Forum discussion claims scores greater than 0.85 are a result of cheating
+score_df <- score_df[score_df$Score < 0.85,]
+quantile(score_df$Score, c(0.25, 0.50, 0.80, 0.90, 0.95)) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
